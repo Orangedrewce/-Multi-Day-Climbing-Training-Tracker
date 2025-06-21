@@ -454,18 +454,6 @@
                             <option value="6">Moderate Discomfort</option>
                         </select>
                     </div>
-                </div>
-                
-                <div class="input-section">
-                    <h3>Training History</h3>
-                    <div class="input-group">
-                        <label>Days Since Last Session</label>
-                        <input type="number" id="daysSince" min="0" max="14" value="" placeholder="0-14" step="1" oninput="validateNumericInput(this, 0, 14)" onkeypress="return isWholeNumberKey(event)">
-                    </div>
-                    <div class="input-group">
-                        <label>Last Session RPE (1-10)</label>
-                        <input type="number" id="lastRPE" min="1" max="10" value="" step="0.5" placeholder="1-10" oninput="validateNumericInput(this, 1, 10)" onkeypress="return isNumberKey(event)">
-                    </div>
                     <div class="input-group">
                         <label>Skin Condition</label>
                         <select id="skin">
@@ -478,6 +466,26 @@
                             <option value="6">Raw/Burning</option>
                             <option value="7">Edge Tears</option>
                         </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Pre-Training Meal</label>
+                        <select id="mealBeforeTraining">
+                            <option value="">Select...</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="input-section">
+                    <h3>Training History</h3>
+                    <div class="input-group">
+                        <label>Days Since Last Session</label>
+                        <input type="number" id="daysSince" min="0" max="14" value="" placeholder="0-14" step="1" oninput="validateNumericInput(this, 0, 14)" onkeypress="return isWholeNumberKey(event)">
+                    </div>
+                    <div class="input-group">
+                        <label>Last Session RPE (1-10)</label>
+                        <input type="number" id="lastRPE" min="1" max="10" value="" step="0.5" placeholder="1-10" oninput="validateNumericInput(this, 1, 10)" onkeypress="return isNumberKey(event)">
                     </div>
                     <div class="input-group">
                         <label>Climbing Type</label>
@@ -494,6 +502,7 @@
             
             <button class="update-btn" onclick="app.calculateRecommendation()">Update Recommendation</button>
             <button class="update-btn" onclick="app.saveEntry()">Save Entry</button>
+            <button class="update-btn" onclick="app.clearCurrentEntry()" style="background: #e74c3c;">Clear Data</button>
             
             <div class="recommendation-panel" id="recommendationPanel">
                 <h2 id="recommendationTitle">Tomorrow's Training Recommendation</h2>
@@ -554,8 +563,8 @@
             cumulativeFatigue(rpe, days) { return Math.log(1 + rpe) * Math.exp(-days / 3); }
             
             calculateAdvancedReadiness(inputs) {
-                const {sleepQuality, sleepDuration, mood, stress, doms, tendons, daysSince, lastRPE, skin} = inputs;
-                if ([sleepQuality, sleepDuration, mood, stress, doms, tendons, daysSince, lastRPE, skin].some(val => val === '' || isNaN(val))) {
+                const {sleepQuality, sleepDuration, mood, stress, doms, tendons, daysSince, lastRPE, skin, mealBeforeTraining} = inputs;
+                if ([sleepQuality, sleepDuration, mood, stress, doms, tendons, daysSince, lastRPE, skin].some(val => val === '' || isNaN(val)) || !mealBeforeTraining) {
                     return null;
                 }
                 const sleepOptimal = sleepDuration >= 7 && sleepDuration <= 9 ? 1 : Math.exp(-Math.pow((sleepDuration - 8) / 2, 2));
@@ -567,10 +576,12 @@
                 const moodScore = Math.pow((11 - mood) / 10, 1.5);
                 const skinScore = skin <= 3 ? 1 : skin <= 5 ? 0.7 : skin <= 7 ? 0.4 : 0.1;
                 
+                const mealFactor = mealBeforeTraining === 'yes' ? 1.05 : 0.95; // 5% boost/penalty for meal
+                
                 const baseReadiness = (
                     sleepScore * 0.25 + recoveryScore * 0.20 + stressScore * 0.15 + 
                     physicalScore * 0.20 + fatigueScore * 0.10 + moodScore * 0.10
-                ) * skinScore;
+                ) * skinScore * mealFactor;
                 
                 const interactionMultiplier = this.calculateInteractions(inputs);
                 return Math.max(0, Math.min(10, baseReadiness * 10 * interactionMultiplier));
@@ -652,7 +663,7 @@
             }
 
             exportToCSV() {
-                const headers = ['date', 'readiness', 'recommendation', 'sleepQuality', 'sleepDuration', 'mood', 'stress', 'doms', 'tendons', 'daysSince', 'lastRPE', 'skin', 'climbingType'];
+                const headers = ['date', 'readiness', 'recommendation', 'sleepQuality', 'sleepDuration', 'mood', 'stress', 'doms', 'tendons', 'daysSince', 'lastRPE', 'skin', 'climbingType', 'mealBeforeTraining'];
                 const sortedData = Object.keys(this.trainingData).sort().map(date => ({ date, ...this.trainingData[date] }));
 
                 let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n";
@@ -677,20 +688,28 @@
                     daysSince: parseInt(document.getElementById('daysSince').value),
                     lastRPE: parseFloat(document.getElementById('lastRPE').value),
                     skin: parseFloat(document.getElementById('skin').value),
-                    climbingType: document.getElementById('climbingType').value
+                    climbingType: document.getElementById('climbingType').value,
+                    mealBeforeTraining: document.getElementById('mealBeforeTraining').value
                 };
             }
             
             loadDataForDate() {
                 const date = document.getElementById('currentDate').value;
                 const data = this.trainingData[date];
-                const fields = ['sleepQuality', 'sleepDuration', 'mood', 'stress', 'doms', 'tendons', 'daysSince', 'lastRPE', 'skin', 'climbingType'];
+                const fields = ['sleepQuality', 'sleepDuration', 'mood', 'stress', 'doms', 'tendons', 'daysSince', 'lastRPE', 'skin', 'climbingType', 'mealBeforeTraining'];
                 if (data) {
                     fields.forEach(field => document.getElementById(field).value = data[field] || '');
                 } else {
                     fields.forEach(field => document.getElementById(field).value = '');
                 }
                 this.calculateRecommendation();
+            }
+            
+            clearCurrentEntry() {
+                const fields = ['sleepQuality', 'sleepDuration', 'mood', 'stress', 'doms', 'tendons', 'daysSince', 'lastRPE', 'skin', 'climbingType', 'mealBeforeTraining'];
+                fields.forEach(field => document.getElementById(field).value = '');
+                this.calculateRecommendation();
+                this.showModal('Cleared!', 'Current entry data has been cleared.');
             }
             
             updateHistory() {
@@ -716,6 +735,8 @@
                                     <div class="log-metric">Stress: ${entry.stress}/10</div>
                                     <div class="log-metric">DOMS: ${entry.doms}/10</div>
                                     <div class="log-metric">Tendons: ${entry.tendons}/10</div>
+                                    <div class="log-metric">Skin: ${this.getSkinText(entry.skin)}</div>
+                                    <div class="log-metric">Meal: ${entry.mealBeforeTraining === 'yes' ? 'Yes' : entry.mealBeforeTraining === 'no' ? 'No' : 'N/A'}</div>
                                     <div class="log-metric">Readiness: ${entry.readiness.toFixed(1)}/10</div>
                                     <div class="log-metric">Type: ${entry.climbingType || 'N/A'}</div>
                                 </div>
@@ -800,6 +821,11 @@
             getMoodText(moodValue) {
                 const moods = { 1: "Psyched", 2: "Optimistic", 3: "Focused", 4: "Ready", 5: "Composed", 6: "Neutral", 7: "Apathetic", 8: "Frustrated", 9: "Lethargic", 10: "Exhausted" };
                 return moods[moodValue] || "Unknown";
+            }
+            
+            getSkinText(skinValue) {
+                const skinConditions = { 1: "Perfect", 1.5: "Robust", 3: "Slightly Worn", 4: "Tender Spots", 5: "Sensitive", 6: "Raw/Burning", 7: "Edge Tears" };
+                return skinConditions[skinValue] || "Unknown";
             }
             
             createWeeklyTrendChart() {
